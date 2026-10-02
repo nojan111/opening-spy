@@ -61,6 +61,8 @@ button:disabled{opacity:.5;cursor:wait}
 .filters{display:flex;flex-wrap:wrap;gap:8px;margin:20px 0 12px}
 .chip{padding:5px 12px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--fg);font-weight:500;font-size:13px}
 .chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent)}
+.chip small{font:500 11px var(--mono);color:var(--muted);margin-left:6px}
+.chip:disabled{opacity:.45;cursor:not-allowed}
 #status{color:var(--muted);font-family:var(--mono);font-size:13px;min-height:20px;margin-top:12px}
 #status.err{color:var(--loss)}
 .summary{display:flex;flex-wrap:wrap;gap:28px;margin:8px 0 16px}
@@ -2408,15 +2410,22 @@ $("#f").onsubmit=async e=>{
 
 /* ---------- openings table ---------- */
 function chips(el,opts,cur,set){
-  el.innerHTML=""; for(const [v,t] of opts){
+  el.innerHTML=""; for(const [v,t,n,tip] of opts){
     const b=document.createElement("button");b.type="button";b.className="chip";b.textContent=t;
+    if(n!=null){ const s=document.createElement("small"); s.textContent=n; b.append(s); }
+    if(n===0){ b.disabled=true; b.title=tip||""; }
     b.setAttribute("aria-pressed",v===cur);b.onclick=()=>{set(v);buildFilters();render()};el.append(b);
   }
 }
 function buildFilters(){
   chips($("#colorF"),[["all","Both colors"],["white","As White"],["black","As Black"]],color,v=>color=v);
-  const tcs=[...new Set(games.map(g=>g.tc))];
-  chips($("#tcF"),[["all","All time controls"],...tcs.map(t=>[t,t[0].toUpperCase()+t.slice(1)])],tc,v=>tc=v);
+  // always show the main time controls, with game counts (0 = none in this period)
+  const pool=games.filter(g=>color==="all"||g.color===color), cnt={}; pool.forEach(g=>cnt[g.tc]=(cnt[g.tc]||0)+1);
+  const main=["bullet","blitz","rapid",site==="lichess"?"classical":"daily"];
+  const tcs=[...main,...Object.keys(cnt).filter(k=>!main.includes(k))];
+  if(tc!=="all"&&!cnt[tc]) tc="all";
+  const nice=k=>({ultraBullet:"UltraBullet",correspondence:"Correspondence"})[k]||k[0].toUpperCase()+k.slice(1);
+  chips($("#tcF"),[["all","All time controls",pool.length],...tcs.map(k=>[k,nice(k),cnt[k]||0,`No ${nice(k).toLowerCase()} games in this period. Try a longer "Last" range.`])],tc,v=>tc=v);
 }
 $("#group").onchange=()=>games.length&&render();
 document.querySelectorAll("th[data-k]").forEach(th=>th.onclick=()=>{
