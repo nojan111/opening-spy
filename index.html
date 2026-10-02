@@ -24,6 +24,7 @@
   --accent:#7fc29b; --accent-soft:#2a3a30; --win:#7fc29b; --draw:#8d877a; --loss:#e0806f; --guy:#6b5f3e; --warn:#e3a04a; --inacc:#d6c05a;
   --sq-light:#c9c0ab; --sq-dark:#76654f; --sq-hl:#c2b152; color-scheme:dark}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
 .wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:32px 64px}
 h1{font:600 clamp(28px,5vw,40px)/1.1 var(--display);margin:0 0 4px;letter-spacing:-.01em}
@@ -146,6 +147,11 @@ tr:last-child td{border-bottom:0}
 .say-h{margin:0;font-weight:600}
 .say ul{margin:6px 0 0;padding-left:18px}
 .say li{margin:3px 0}
+.mini{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:2px 0 4px;font-size:14px;color:var(--muted)}
+.mini b{color:var(--fg)}
+.mini button{font-size:14px;padding:6px 12px}
+body.deep h1{font-size:24px}
+body.deep .wrap{padding-top:16px}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
 @media (max-width:640px){
@@ -372,7 +378,8 @@ https://github.com/shaack/cm-chessboard
 
 <div class="wrap">
   <h1>Opening Spy</h1>
-  <p class="sub">Snoop on anyone's openings. See what they play, how often, and how it goes, then replay any game with an engine and a slightly judgy coach.</p>
+  <div class="mini" id="mini" hidden><span id="miniTxt"></span><button type="button" id="newSearch">New search</button></div>
+  <p class="sub" id="sub">Snoop on anyone's openings. See what they play, how often, and how it goes, then replay any game with an engine and a slightly judgy coach.</p>
 
   <form id="f">
     <label>Site
@@ -2267,7 +2274,14 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",
 let games=[], color="all", tc="all", sortK="n", sortDir=-1, site="chesscom", player="";
 let curOpening=null, curGames=[];
 
-function show(v){for(const id of ["vOpenings","vGames","vBoard"])$("#"+id).hidden=id!==v; window.scrollTo({top:0});}
+function show(v){
+  for(const id of ["vOpenings","vGames","vBoard"])$("#"+id).hidden=id!==v;
+  const deep=v==="vGames"||v==="vBoard"; // tuck the search away while looking at games
+  for(const id of ["f","sub","status"]) $("#"+id).hidden=deep;
+  $("#mini").hidden=!deep; document.body.classList.toggle("deep",deep);
+  $("#miniTxt").innerHTML=`Spying on <b>${esc(player)}</b> · ${site==="chesscom"?"Chess.com":"Lichess"}`;
+  window.scrollTo({top:0});
+}
 
 function setRange(){
   const r=$("#range"), cc=$("#site").value==="chesscom";
@@ -2422,6 +2436,7 @@ function openGames(name){
 }
 rowActivate($("#gtb"),i=>openBoard(curGames[i]));
 $("#backO").onclick=()=>show("vOpenings");
+$("#newSearch").onclick=()=>{ engineStop(); stopAccuracy(); show("vOpenings"); const u=$("#user"); u.focus(); u.select(); };
 $("#backG").onclick=()=>{engineStop();stopAccuracy();show("vGames")};
 
 /* ---------- board ---------- */
