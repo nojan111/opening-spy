@@ -174,6 +174,7 @@ tr:last-child td{border-bottom:0}
 .mini button{font-size:14px;padding:6px 12px}
 body.deep h1{font-size:24px}
 body.deep .wrap{padding-top:16px}
+.engbtn{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:99px;background:transparent}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
 @media (max-width:640px){
@@ -481,7 +482,7 @@ https://github.com/shaack/cm-chessboard
       <div class="panel">
         <div class="opnow" id="opNow"></div>
         <div class="acc" id="acc"></div>
-        <div class="eng"><b id="evalTxt">0.00</b><small id="evalInfo">Stockfish · starting…</small></div>
+        <div class="eng"><b id="evalTxt">0.00</b><small id="evalInfo">Stockfish · starting…</small><button type="button" id="engToggle" class="engbtn"></button></div>
         <p class="pv" id="pv"></p>
         <div class="coach">
           <div id="coachGuy"></div>
@@ -2300,6 +2301,9 @@ var La=[YJ,Jk,Kk,gc,Nk,Yc,Zc,_c,Oc,Uc,Jh,Mk,$k,al,cl,dl,sm,ym,Em,Fm,Km,Lm,hp,op,
 <script>
 const $=s=>document.querySelector(s);
 $("#nojs")?.remove();
+// phones get a lighter engine: less depth, one engine at a time, nothing while the app is in the background
+const PHONE=matchMedia("(max-width:820px)").matches||/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+let engineOn=true; try{ engineOn=localStorage.getItem("spyEngine")!=="off" }catch(e){}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let games=[], color="all", tc="all", sortK="n", sortDir=-1, site="chesscom", player="";
 let curOpening=null, curGames=[];
@@ -2512,7 +2516,7 @@ function openBoard(g){
     }
     mv.insertAdjacentHTML("beforeend",h);
   }
-  show("vBoard"); go(0); runAccuracy(g);
+  show("vBoard"); runAccuracy(g); go(0);
 }
 $("#moves").onclick=e=>{const b=e.target.closest("button[data-p]");if(b)go(+b.dataset.p)};
 function go(p){
@@ -2634,18 +2638,21 @@ function moveSound(san){
 /* ---------- game review: accuracy + mistakes (second engine, fixed depth) ---------- */
 let sfURL=null;
 function makeWorker(){ sfURL=sfURL||URL.createObjectURL(new Blob([$("#sfsrc").textContent],{type:"text/javascript"})); return new Worker(sfURL); }
-const ACC_DEPTH=+(new URLSearchParams(location.search).get('d')||13), accCache=new Map(); let accRun=null;
+let accResume=null;
+const ACC_DEPTH=+(new URLSearchParams(location.search).get('d')||(PHONE?10:13)), accCache=new Map(); let accRun=null;
 const winPct=cp=>50+50*(2/(1+Math.exp(-0.00368208*cp))-1);
-function stopAccuracy(){ if(accRun){accRun.terminate(); accRun=null;} }
+function stopAccuracy(){ if(accRun){accRun.terminate(); accRun=null; accResume=null;} }
 function runAccuracy(g){
   stopAccuracy(); markMoves(null);
   if(accCache.has(g.url)){ showAccuracy(g,accCache.get(g.url)); return; }
   let w; try{ w=makeWorker(); }catch(e){ $("#acc").innerHTML=`<div class="lbl">Accuracy</div><div class="cc">Engine couldn't start in this browser</div>`; return; }
   accRun=w; const OP=opAt.slice(), F=fens.slice(), ev=new Array(F.length), bp=new Array(F.length), mt=new Array(F.length); let i=0, last=0, lastPv=null, lastMate=null;
   const prog=()=>{ $("#acc").innerHTML=`<div class="lbl">Game review · checking move ${Math.min(i,F.length-1)} of ${F.length-1}</div><div class="prog"><i style="width:${i/F.length*100}%"></i></div>`; };
+  let paused=false;
   const next=()=>{
+    if(document.hidden){ paused=true; return; }
     while(i<F.length){ const c=new Chess(F[i]); if(!c.game_over()) break; ev[i]=c.in_checkmate()?(c.turn()==="w"?-10000:10000):0; i++; }
-    if(i>=F.length){ w.terminate(); if(accRun===w) accRun=null; const r=computeAcc(ev,OP); r.ev=ev; r.best=bp; r.mate=mt; accCache.set(g.url,r); if(game===g) showAccuracy(g,r); return; }
+    if(i>=F.length){ w.terminate(); if(accRun===w){ accRun=null; accResume=null; } const r=computeAcc(ev,OP); r.ev=ev; r.best=bp; r.mate=mt; accCache.set(g.url,r); if(game===g){ showAccuracy(g,r); if(liveWaiting){ liveWaiting=false; analyse(fens[ply]); } } return; }
     last=0; lastPv=null; lastMate=null; prog(); w.postMessage("position fen "+F[i]); w.postMessage("go depth "+ACC_DEPTH);
   };
   w.onmessage=e=>{ const l=String(e.data);
@@ -2655,6 +2662,7 @@ function runAccuracy(g){
     else if(l.startsWith("bestmove")){ const sg=F[i].split(" ")[1]==="w"?1:-1; ev[i]=last*sg; mt[i]=lastMate==null?null:lastMate*sg;
       bp[i]=lastPv||[l.split(" ")[1]]; i++; next(); }
   };
+  accResume=()=>{ if(paused){ paused=false; next(); } };
   w.postMessage("uci"); w.postMessage("setoption name Contempt value 0"); w.postMessage("ucinewgame"); next();
 }
 function computeAcc(ev,opAtRun){
@@ -2930,7 +2938,8 @@ function autoComment(){
 $("#askW").onclick=()=>coachAsk("w"); $("#askB").onclick=()=>coachAsk("b"); coachReset();
 
 /* ---------- engine (Stockfish, runs locally in a worker) ---------- */
-const DEPTH=18;
+const DEPTH=PHONE?14:18;
+let liveWaiting=false;
 let sf=null, searching=false, pending=null, curFen=null;
 function engine(){
   if(sf) return sf;
@@ -2948,11 +2957,22 @@ function analyse(fen){
     const txt=c.in_checkmate()?(c.turn()==="w"?"0-1":"1-0"):"½-½";
     setEval(c.in_checkmate()?(c.turn()==="w"?-1:1):0,txt, c.in_checkmate()?"Checkmate":"Draw",""); return;
   }
+  if(!engineOn){ engineStop(); setEval(0,"–","Engine off · tap to turn on",""); return; }
+  if(PHONE&&accRun){ engineStop(); liveWaiting=true; $("#evalInfo").textContent="Waiting for the game review (saves battery)…"; return; }
+  if(document.hidden) return;
   if(!engine()) return;
   $("#evalInfo").textContent="Stockfish · thinking…";
   if(searching){pending=fen; sf.postMessage("stop");} else start(fen);
 }
 function start(fen){curFen=fen; searching=true; sf.postMessage("position fen "+fen); sf.postMessage("go depth "+DEPTH);}
+function setEngBtn(){ $("#engToggle").textContent=engineOn?"Pause engine":"Turn engine on"; }
+$("#engToggle").onclick=()=>{ engineOn=!engineOn; try{localStorage.setItem("spyEngine",engineOn?"on":"off")}catch(e){} setEngBtn(); if(!$("#vBoard").hidden) analyse(fens[ply]); };
+setEngBtn();
+document.addEventListener("visibilitychange",()=>{
+  if(document.hidden){ engineStop(); return; }
+  accResume&&accResume();
+  if(!$("#vBoard").hidden&&fens.length) analyse(fens[ply]);
+});
 function engineStop(){ if(sf&&searching){pending=null; sf.postMessage("stop");} }
 function onEngine(line){
   if(line.startsWith("bestmove")){ searching=false; if(pending){const f=pending;pending=null;start(f);} return; }
