@@ -2486,7 +2486,11 @@ function go(p){
   $("#opNow").innerHTML=o?`<div class="lbl">Opening · ${o[0]}</div><div class="nm">${esc(o[1])}</div>
       <div class="st">${ply<=lastBook?"Still in known theory":"Left theory after "+mvno(lastBook)}</div>`
     :`<div class="lbl">Opening</div><div class="nm">Starting position</div><div class="st">Step forward to see the opening form</div>`;
-  const cur=document.querySelector("#moves button.cur"); if(cur)cur.scrollIntoView({block:"nearest"});
+  const cur=document.querySelector("#moves button.cur");
+  if(cur){ // scroll only inside the move list, never the page
+    const box=$("#moves"), br=cur.getBoundingClientRect(), mr=box.getBoundingClientRect();
+    if(br.top<mr.top) box.scrollTop-=mr.top-br.top+8; else if(br.bottom>mr.bottom) box.scrollTop+=br.bottom-mr.bottom+8;
+  } else if(ply===0) $("#moves").scrollTop=0;
   analyse(fens[ply]);
 }
 function drawBoard(){
