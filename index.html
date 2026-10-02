@@ -3,7 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Opening Spy</title>
+<title>Opening Spy · Chess Opening Scout</title>
+<meta name="description" content="See which chess openings any Chess.com or Lichess player uses, how often and how they score, then replay their games with Stockfish, accuracy, clocks and a slightly judgy coach.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nojan111.github.io/opening-spy/">
+<meta property="og:title" content="Opening Spy · Chess Opening Scout">
+<meta property="og:description" content="See which chess openings any Chess.com or Lichess player uses, how often and how they score, then replay their games with Stockfish, accuracy, clocks and a slightly judgy coach.">
+<meta property="og:image" content="https://nojan111.github.io/opening-spy/og-image.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Opening Spy · Chess Opening Scout">
+<meta name="twitter:description" content="See which chess openings any Chess.com or Lichess player uses, how often and how they score, then replay their games with Stockfish, accuracy, clocks and a slightly judgy coach.">
+<meta name="twitter:image" content="https://nojan111.github.io/opening-spy/og-image.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" href="icon-192.png">
@@ -27,7 +38,16 @@
 [hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body)}
 .wrap{max-width:1040px;margin:0 auto;padding-inline:16px;padding-block:32px 64px}
-h1{font:600 clamp(28px,5vw,40px)/1.1 var(--display);margin:0 0 4px;letter-spacing:-.01em}
+h1{font:600 clamp(28px,5vw,40px)/1.1 var(--display);margin:0;letter-spacing:-.01em}
+.brand{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+.logo{width:56px;height:56px;border-radius:14px;flex:none;box-shadow:0 2px 8px #0002}
+.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);font-weight:600}
+.try{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--muted)}
+.try button{font-size:13px;padding:5px 12px;border-radius:99px;background:transparent}
+.try button:hover{background:var(--accent-soft)}
+.try small{color:var(--muted);font-size:11px;margin-left:2px}
+body.deep .logo{width:36px;height:36px;border-radius:9px}
+body.deep .eyebrow{display:none}
 h2{font:600 22px/1.2 var(--display);margin:0}
 .sub{color:var(--muted);margin:0 0 24px}
 form{display:flex;flex-wrap:wrap;gap:10px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
@@ -377,7 +397,10 @@ https://github.com/shaack/cm-chessboard
 </svg>
 
 <div class="wrap">
-  <h1>Opening Spy</h1>
+  <div class="brand">
+    <img src="apple-touch-icon.png" alt="" width="56" height="56" class="logo">
+    <div><div class="eyebrow">Chess opening scout<span class="hide-sm"> · Chess.com &amp; Lichess</span></div><h1>Opening Spy</h1></div>
+  </div>
   <div class="mini" id="mini" hidden><span id="miniTxt"></span><button type="button" id="newSearch">New search</button></div>
   <p class="sub" id="sub">Snoop on anyone's openings. See what they play, how often, and how it goes, then replay any game with an engine and a slightly judgy coach.</p>
 
@@ -396,6 +419,11 @@ https://github.com/shaack/cm-chessboard
     </label>
     <button class="primary" id="go">Spy</button>
   </form>
+  <div class="try" id="try"><span>Try it:</span>
+    <button type="button" data-site="chesscom" data-user="hikaru" data-range="1">Hikaru <small>Chess.com</small></button>
+    <button type="button" data-site="lichess" data-user="DrNykterstein" data-range="300">Magnus <small>Lichess</small></button>
+    <button type="button" data-site="chesscom" data-user="GothamChess" data-range="12">Levy <small>Chess.com</small></button>
+  </div>
   <div id="status"></div>
   <p id="nojs" class="hint" style="color:var(--loss)">If you can read this, the page's scripts aren't running. Open the file in Safari or Chrome instead of a file preview.</p>
 
@@ -2277,7 +2305,7 @@ let curOpening=null, curGames=[];
 function show(v){
   for(const id of ["vOpenings","vGames","vBoard"])$("#"+id).hidden=id!==v;
   const deep=v==="vGames"||v==="vBoard"; // tuck the search away while looking at games
-  for(const id of ["f","sub","status"]) $("#"+id).hidden=deep;
+  for(const id of ["f","sub","status","try"]) $("#"+id).hidden=deep;
   $("#mini").hidden=!deep; document.body.classList.toggle("deep",deep);
   $("#miniTxt").innerHTML=`Spying on <b>${esc(player)}</b> · ${site==="chesscom"?"Chess.com":"Lichess"}`;
   window.scrollTo({top:0});
@@ -2291,6 +2319,9 @@ function setRange(){
   r.value=cc?"3":"300";
 }
 $("#site").onchange=setRange; setRange();
+$("#try").onclick=e=>{ const b=e.target.closest("button[data-user]"); if(!b) return;
+  $("#site").value=b.dataset.site; setRange(); $("#range").value=b.dataset.range; $("#user").value=b.dataset.user;
+  $("#f").requestSubmit(); };
 const status=(t,err)=>{const s=$("#status");s.textContent=t;s.className=err?"err":""};
 
 /* ---------- loading ---------- */
