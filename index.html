@@ -198,6 +198,21 @@ body.deep .wrap{padding-top:16px}
 .tgame:hover,.tmore:hover{background:var(--accent-soft)}
 .tmore{color:var(--muted)}
 .tempty{font-size:13px;color:var(--muted);margin:4px 0 0}
+.showcase{margin:22px 0 0}
+.sc-refresh{margin-left:auto;font-size:13px;padding:5px 12px;border-radius:99px;background:transparent}
+.sc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin-top:10px}
+.sc-card{display:flex;gap:12px;align-items:center;text-align:left;padding:10px;border-radius:10px;background:var(--panel);border:1px solid var(--line);cursor:pointer;min-width:0}
+.sc-card:hover{border-color:var(--accent)}
+.mini-board{display:grid;grid-template-columns:repeat(8,1fr);width:96px;height:96px;flex:none;border-radius:4px;overflow:hidden}
+.mini-board i{position:relative;display:block}
+.mini-board i.l{background:var(--sq-light)}.mini-board i.d{background:var(--sq-dark)}
+.mini-board i.hl::after{content:"";position:absolute;inset:0;background:var(--sq-hl);opacity:.55}
+.mini-board svg{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+.sc-txt{min-width:0}
+.sc-trap{font:600 16px/1.2 var(--display)}
+.sc-who{font-size:13px;margin-top:3px}.sc-who span{font:500 11px var(--mono);color:var(--muted)}
+.sc-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.sc-wait{grid-column:1/-1;font-size:13px;color:var(--muted);margin:0;padding:16px;border:1px dashed var(--line);border-radius:8px;text-align:center}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
 @media (max-width:640px){
@@ -457,6 +472,10 @@ https://github.com/shaack/cm-chessboard
   <p id="nojs" class="hint" style="color:var(--loss)">If you can read this, the page's scripts aren't running. Open the file in Safari or Chrome instead of a file preview.</p>
 
   <!-- view 1: openings -->
+  <section class="showcase" id="showcase">
+    <div class="traps-h"><h3>Fresh trap victims</h3><span id="scNote"></span><button type="button" id="scRefresh" class="sc-refresh">Find new ones</button></div>
+    <div class="sc-grid" id="scGrid"></div>
+  </section>
   <p class="offline" id="offlineNote">♟ Everything runs on your device: engine, accuracy, the coach. No account, no server. Only loading the games needs internet, and after your first visit the app opens even offline.</p>
 
   <section id="vOpenings" hidden>
@@ -2342,6 +2361,7 @@ function show(v){
   for(const id of ["vOpenings","vGames","vBoard"])$("#"+id).hidden=id!==v;
   const deep=v==="vGames"||v==="vBoard"; // tuck the search away while looking at games
   for(const id of ["f","sub","status","try","offlineNote"]) $("#"+id).hidden=deep;
+  $("#showcase").hidden=!!v;
   $("#mini").hidden=!deep; document.body.classList.toggle("deep",deep);
   $("#miniTxt").innerHTML=`Spying on <b>${esc(player)}</b> · ${site==="chesscom"?"Chess.com":"Lichess"}`;
   window.scrollTo({top:0});
@@ -2510,7 +2530,7 @@ function showGameList(name,list,noShow){
   if(!noShow) show("vGames");
 }
 rowActivate($("#gtb"),i=>openBoard(curGames[i]));
-$("#backO").onclick=()=>show("vOpenings");
+$("#backO").onclick=()=>show(games.length?"vOpenings":null);
 $("#newSearch").onclick=()=>{ engineStop(); stopAccuracy(); show("vOpenings"); const u=$("#user"); u.focus(); u.select(); };
 $("#backG").onclick=()=>{engineStop();stopAccuracy();show("vGames")};
 
@@ -3053,6 +3073,74 @@ $("#traps").addEventListener("click",e=>{
   else if(more){ const bag=more.dataset.f==="1"?bags.fell:bags.did, t=TRAPS.find(x=>x.id===more.dataset.t);
     showGameList(`${t.name} · ${more.dataset.f==="1"?"fell for it":"pulled it off"}`,bag[t.id]); }
 });
+
+/* ---------- front page: fresh trap victims from Lichess beginner tournaments ---------- */
+const CLASSIC=[{ // Légal vs Saint Brie, Paris 1750: the game the trap is named after
+  url:"https://en.wikipedia.org/wiki/L%C3%A9gal_Trap", color:"white", me:"Légal", opp:"Saint Brie", myR:null, oppR:null,
+  date:new Date(Date.UTC(1750,0,1)), tc:"classical", res:"W", classic:true,
+  moves:"e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#".split(" "), clocks:[], tcx:null, full:"Philidor Defense", family:"Philidor Defense", eco:"C41"}];
+function miniBoard(moves){
+  const c=new Chess(); let last=null; for(const s of moves){ const r=c.move(s,{sloppy:true}); if(!r) break; last=r; }
+  let h=""; for(let r=8;r>=1;r--) for(let f=0;f<8;f++){ const sq=FILES[f]+r, p=c.get(sq), hl=last&&(last.from===sq||last.to===sq);
+    h+=`<i class="${(r+f)%2?"l":"d"}${hl?" hl":""}">${p?`<svg viewBox="0 0 40 40"><use href="#${p.color}${p.type}"/></svg>`:""}</i>`; }
+  return `<div class="mini-board" aria-hidden="true">${h}</div>`;
+}
+function lichessToGame(x){
+  const W=x.players.white, B=x.players.black, mater=x.winner; // trapper's point of view
+  const me=mater==="white"?W:B, op=mater==="white"?B:W, full=x.opening?.name||"Unknown";
+  return {color:mater, me:me.user?.name||"Anonymous", opp:op.user?.name||"Anonymous", myR:me.rating, oppR:op.rating,
+    date:new Date(x.lastMoveAt||x.createdAt), tc:x.speed, res:"W", url:"https://lichess.org/"+x.id,
+    moves:(x.moves||"").split(" ").filter(Boolean), clocks:[], tcx:null, full, family:full.split(":")[0], eco:x.opening?.eco||""};
+}
+const ago=d=>{ const m=Math.round((Date.now()-d)/60000); return m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" days ago"; };
+let showcaseGames=[];
+function renderShowcase(list,note){
+  showcaseGames=list;
+  $("#scGrid").innerHTML=list.map((g,i)=>{ const t=trapOf(g); const victim=g.opp, vr=g.oppR;
+    return `<button type="button" class="sc-card" data-i="${i}">
+      ${miniBoard(g.moves)}
+      <div class="sc-txt"><div class="sc-trap">${t?t.trap.name:"Checkmate"}</div>
+      <div class="sc-who"><b>${esc(victim)}</b>${vr?` <span>${vr}</span>`:""} got mated on move ${Math.ceil(g.moves.length/2)}</div>
+      <div class="sc-meta">${g.classic?"Paris, 1750 · the original":`${esc(g.tc)} · ${ago(g.date)}`}</div></div></button>`; }).join("");
+  $("#scNote").textContent=note||"";
+}
+async function loadShowcase(force){
+  try{ const c=JSON.parse(localStorage.getItem("spyShowcase")||"null");
+    if(!force&&c&&Date.now()-c.t<3600e3&&c.items.length){ renderShowcase(c.items.map(g=>({...g,date:new Date(g.date)})),"Fresh from today's Lichess beginner tournaments."); return; } }catch(e){}
+  $("#scGrid").innerHTML=`<p class="sc-wait">Scanning the latest Lichess beginner tournaments for trap victims…</p>`;
+  try{
+    const r=await fetch("https://lichess.org/api/tournament"); if(!r.ok) throw 0;
+    const all=(await r.json()).finished||[];
+    const cap=t=>{ const m=(t.fullName||"").match(/≤\s?(\d{3,4})/); return m?+m[1]:(t.maxRating?.rating||9999); };
+    const pool=all.filter(t=>cap(t)<=1700&&t.nbPlayers>=20).sort((a,b)=>cap(a)-cap(b)||b.finishesAt-a.finishesAt);
+    const pickT=(pool.length?pool:all).slice(0,3), found=[], seen=new Set();
+    for(const t of pickT){
+      const gr=await fetch(`https://lichess.org/api/tournament/${t.id}/games?moves=true&opening=true&clocks=false&evals=false`,{headers:{Accept:"application/x-ndjson"}});
+      if(!gr.ok) continue;
+      for(const line of (await gr.text()).split("\n")){ if(!line.trim()) continue;
+        const x=JSON.parse(line); if(x.status!=="mate"||!x.winner) continue;
+        const g=lichessToGame(x), tr=trapOf(g); if(!tr) continue;
+        found.push({g,named:tr.trap.id!=="early",id:tr.trap.id}); }
+      if(found.filter(f=>f.named).length>=6) break;
+    }
+    // named traps first, one per trap type, then fill
+    found.sort((a,b)=>b.named-a.named||a.g.moves.length-b.g.moves.length);
+    const out=[]; for(const f of found){ if(out.length>=6) break; if(f.named&&seen.has(f.id)) continue; seen.add(f.id); out.push(f.g); }
+    for(const f of found){ if(out.length>=6) break; if(!out.includes(f.g)) out.push(f.g); }
+    if(!out.length) throw 0;
+    try{ localStorage.setItem("spyShowcase",JSON.stringify({t:Date.now(),items:out})); }catch(e){}
+    renderShowcase(out,"Fresh from today's Lichess beginner tournaments.");
+  }catch(e){
+    renderShowcase(CLASSIC,"Couldn't reach Lichess right now, so here's where it all started.");
+  }
+}
+$("#scGrid").addEventListener("click",e=>{
+  const b=e.target.closest(".sc-card"); if(!b) return; const g=showcaseGames[+b.dataset.i];
+  site=g.classic?"chesscom":"lichess"; player="trap victims";
+  showGameList("Trap victims",showcaseGames,true); openBoard(g); go(g.moves.length);
+});
+$("#scRefresh").onclick=()=>loadShowcase(true);
+loadShowcase();
 
 /* ---------- engine (Stockfish, runs locally in a worker) ---------- */
 const DEPTH=PHONE?14:18;
