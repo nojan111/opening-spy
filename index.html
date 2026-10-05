@@ -211,7 +211,9 @@ body.deep .wrap{padding-top:16px}
 .sc-txt{min-width:0}
 .sc-trap{font:600 16px/1.2 var(--display)}
 .sc-who{font-size:13px;margin-top:3px}.sc-who span{font:500 11px var(--mono);color:var(--muted)}
-.sc-meta{font-size:12px;color:var(--muted);margin-top:3px}
+.sc-meta{font-size:12px;color:var(--muted);margin-top:4px}
+.sc-res{font:600 11px var(--mono);padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--fg)}
+.sc-res.mate{background:var(--loss);color:#fff}
 .sc-wait{grid-column:1/-1;font-size:13px;color:var(--muted);margin:0;padding:16px;border:1px dashed var(--line);border-radius:8px;text-align:center}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
@@ -473,7 +475,7 @@ https://github.com/shaack/cm-chessboard
 
   <!-- view 1: openings -->
   <section class="showcase" id="showcase">
-    <div class="traps-h"><h3>Fresh trap victims</h3><span id="scNote"></span><button type="button" id="scRefresh" class="sc-refresh">Find new ones</button></div>
+    <div class="traps-h"><h3>Famous traps</h3><span>The most popular traps in chess. Tap one to watch it happen, so it never happens to you.</span></div>
     <div class="sc-grid" id="scGrid"></div>
   </section>
   <p class="offline" id="offlineNote">♟ Everything runs on your device: engine, accuracy, the coach. No account, no server. Only loading the games needs internet, and after your first visit the app opens even offline.</p>
@@ -2363,7 +2365,7 @@ function show(v){
   for(const id of ["f","sub","status","try","offlineNote"]) $("#"+id).hidden=deep;
   $("#showcase").hidden=!!v;
   $("#mini").hidden=!deep; document.body.classList.toggle("deep",deep);
-  $("#miniTxt").innerHTML=`Spying on <b>${esc(player)}</b> · ${site==="chesscom"?"Chess.com":"Lichess"}`;
+  $("#miniTxt").innerHTML=site==="famous"?`<b>Famous traps</b>`:`Spying on <b>${esc(player)}</b> · ${site==="chesscom"?"Chess.com":"Lichess"}`;
   window.scrollTo({top:0});
 }
 
@@ -2522,10 +2524,10 @@ function showGameList(name,list,noShow){
   curOpening=name;
   curGames=list.slice().sort((a,b)=>b.date-a.date);
   const W=curGames.filter(g=>g.res==="W").length;
-  $("#gTitle").textContent=`${name} · ${curGames.length} game${curGames.length>1?"s":""} · ${Math.round(W/curGames.length*100)}% won`;
+  $("#gTitle").textContent=curGames.every(g=>g.famous)?`${name} · ${curGames.length}`:`${name} · ${curGames.length} game${curGames.length>1?"s":""} · ${Math.round(W/curGames.length*100)}% won`;
   $("#gtb").innerHTML=curGames.map((g,i)=>`<tr class="click" data-i="${i}" tabindex="0">
-    <td>${fmtDate(g.date)}</td><td class="hide-sm"><span class="side ${g.color}"></span>${g.color}</td>
-    <td><span class="side ${g.color} show-sm"></span>${esc(g.opp)} <span class="eco">${g.oppR??""}</span></td><td class="num"><span class="res ${g.res}">${g.res}</span></td>
+    <td>${g.famous?(g.famous.year||"Demo"):fmtDate(g.date)}</td><td class="hide-sm"><span class="side ${g.color}"></span>${g.color}</td>
+    <td><span class="side ${g.color} show-sm"></span>${g.famous?`<b>${esc(g.famous.name)}</b>`:esc(g.opp)} <span class="eco">${g.oppR??""}</span></td><td class="num"><span class="res ${g.res}">${g.res}</span></td>
     <td class="hide-sm">${esc(g.tc)}</td><td class="num">${Math.ceil(g.moves.length/2)}</td><td class="name hide-sm" style="color:var(--muted)">${esc(g.full)}</td></tr>`).join("");
   if(!noShow) show("vGames");
 }
@@ -2541,8 +2543,8 @@ function openBoard(g){
   game=g; const c=new Chess(); fens=[c.fen()]; sans=[]; lastMoves=[null];
   for(const m of g.moves){const r=c.move(m,{sloppy:true}); if(!r)break; sans.push(r.san); lastMoves.push([r.from,r.to]); fens.push(c.fen());}
   flipped=g.color==="black"; ply=0;
-  $("#bTitle").textContent=`vs ${g.opp} · ${fmtDate(g.date)}`;
-  $("#links").innerHTML=`<a href="${esc(g.url)}" target="_blank" rel="noopener">Open this game on ${site==="chesscom"?"Chess.com":"Lichess"}</a>`+
+  $("#bTitle").textContent=g.famous?(g.famous.year?`${g.famous.name} · ${g.famous.white} vs ${g.famous.black}, ${g.famous.year}`:g.famous.name):`vs ${g.opp} · ${fmtDate(g.date)}`;
+  $("#links").innerHTML=(g.famous?`<span style="color:var(--muted)">${g.famous.year?"Historical game":"Demo game"} · ${esc(g.famous.opening)}</span>`:`<a href="${esc(g.url)}" target="_blank" rel="noopener">Open this game on ${site==="chesscom"?"Chess.com":"Lichess"}</a>`)+
     (sans.length<g.moves.length?` <span style="color:var(--loss)">· couldn't read every move</span>`:"");
   // clocks: clk[q] = seconds left for the mover after ply q
   tcx=g.tcx; clk=[null]; spent=[null];
@@ -3035,6 +3037,14 @@ const TRAPS=[
    test:(m,N,w)=>!w&&N<=24&&m[N-1]==="Nf3#"&&m.slice(0,8).includes("Nd4")},
   {id:"englund",name:"Englund Gambit trap",blurb:"1.d4 e5?! and greedy White walks into ...Qc1#.",
    test:(m,N,w)=>!w&&N<=24&&m[0]==="d4"&&m[1]==="e5"&&m[N-1]==="Qc1#"},
+  {id:"stafford",name:"Stafford Gambit trap",blurb:"Bg5 pins the knight, Black sacs the queen, ...Bg4# follows.",
+   test:(m,N,w)=>!w&&N<=30&&m[1]==="e5"&&m[3]==="Nf6"&&m[N-1]==="Bg4#"},
+  {id:"from",name:"From's Gambit trap",blurb:"Bird's Opening goes wrong: ...Bxg3# with the queen sac.",
+   test:(m,N,w)=>!w&&N<=20&&m[0]==="f4"&&m[1]==="e5"&&m[N-1]==="Bxg3#"},
+  {id:"siberian",name:"Siberian trap",blurb:"Smith-Morra special: ...Nd4! and ...Qh2#.",
+   test:(m,N,w)=>!w&&N<=30&&m[1]==="c5"&&m[N-1]==="Qh2#"&&m.slice(0,N).includes("Nd4")},
+  {id:"fishing",name:"Fishing Pole trap",blurb:"The knight on g4 is bait, the h-file is the line.",
+   test:(m,N,w)=>!w&&N<=30&&/^Qx?h[12]#$/.test(m[N-1])&&m.slice(0,N).some((s,i)=>i%2===1&&s==="Ng4")&&m.slice(0,N).some((s,i)=>i%2===1&&s==="h5")},
   {id:"kieninger",name:"Kieninger trap",blurb:"Budapest Gambit special: take the bishop, get ...Nd3#.",
    test:(m,N,w)=>!w&&N<=24&&m[0]==="d4"&&m[2]==="c4"&&m[N-1]==="Nd3#"},
   {id:"smothered",name:"Smothered mate",blurb:"A knight mates a king that's boxed in by its own pieces.",
@@ -3074,73 +3084,31 @@ $("#traps").addEventListener("click",e=>{
     showGameList(`${t.name} · ${more.dataset.f==="1"?"fell for it":"pulled it off"}`,bag[t.id]); }
 });
 
-/* ---------- front page: fresh trap victims from Lichess beginner tournaments ---------- */
-const CLASSIC=[{ // Légal vs Saint Brie, Paris 1750: the game the trap is named after
-  url:"https://en.wikipedia.org/wiki/L%C3%A9gal_Trap", color:"white", me:"Légal", opp:"Saint Brie", myR:null, oppR:null,
-  date:new Date(Date.UTC(1750,0,1)), tc:"classical", res:"W", classic:true,
-  moves:"e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#".split(" "), clocks:[], tcx:null, full:"Philidor Defense", family:"Philidor Defense", eco:"C41"}];
+/* ---------- front page: famous traps gallery (curated demo games, verified with chess.js) ---------- */
+const FAMOUS=[{"id": "fool", "name": "Fool's Mate", "opening": "Bird / Barnes Opening", "winner": "black", "result": "Checkmate in 2", "blurb": "The fastest checkmate in chess. Two pawn moves open the king's diagonal and the queen walks in.", "moves": "f3 e5 g4 Qh4#"}, {"id": "scholar", "name": "Scholar's Mate", "opening": "Italian / Bishop's Opening", "winner": "white", "result": "Checkmate in 4", "blurb": "Queen and bishop gang up on f7, the weakest square in Black's camp. Everyone's first heartbreak.", "moves": "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7#"}, {"id": "legal", "name": "Légal's Mate", "opening": "Philidor Defense", "winner": "white", "result": "Checkmate in 7", "white": "Légal", "black": "Saint Brie", "year": 1750, "blurb": "White gives away the queen on purpose, then the minor pieces mate. The real game from Paris, 1750.", "moves": "e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#"}, {"id": "blackburne", "name": "Blackburne Shilling trap", "opening": "Italian Game", "winner": "black", "result": "Checkmate in 7", "blurb": "...Nd4 looks like a blunder. White grabs e5, gets greedy, and ...Nf3# lands out of nowhere.", "moves": "e4 e5 Nf3 Nc6 Bc4 Nd4 Nxe5 Qg5 Nxf7 Qxg2 Rf1 Qxe4+ Be2 Nf3#"}, {"id": "stafford", "name": "Stafford Gambit trap", "opening": "Petrov Defense", "winner": "black", "result": "Checkmate in 8", "blurb": "The internet's favourite troll gambit. Pin the knight with Bg5, and Black sacs the queen for mate.", "moves": "e4 e5 Nf3 Nf6 Nxe5 Nc6 Nxc6 dxc6 d3 Bc5 Bg5 Nxe4 Bxd8 Bxf2+ Ke2 Bg4#"}, {"id": "englund", "name": "Englund Gambit trap", "opening": "Englund Gambit", "winner": "black", "result": "Checkmate in 7", "blurb": "1.d4 e5?! looks silly, but if White grabs everything on offer, ...Qc1# ends it.", "moves": "d4 e5 dxe5 Qe7 Nf3 Qb4+ Bd2 Qxb2 Bc3 Bb4 Qd2 Bxc3 Qxc3 Qc1#"}, {"id": "caro", "name": "Caro-Kann smothered mate", "opening": "Caro-Kann Defense", "winner": "white", "result": "Checkmate in 6", "blurb": "Black develops the wrong knight and Nd6# smothers the king behind its own pieces.", "moves": "e4 c6 d4 d5 Nc3 dxe4 Nxe4 Nd7 Qe2 Ngf6 Nd6#"}, {"id": "siberian", "name": "Siberian trap", "opening": "Smith-Morra Gambit", "winner": "black", "result": "Checkmate in 10", "blurb": "One natural-looking h3 and ...Nd4! threatens the queen and mate on h2 at the same time.", "moves": "e4 c5 d4 cxd4 c3 dxc3 Nxc3 Nc6 Nf3 e6 Bc4 Qc7 O-O Nf6 Qe2 Ng4 h3 Nd4 Nxd4 Qh2#"}, {"id": "from", "name": "From's Gambit trap", "opening": "Bird's Opening", "winner": "black", "result": "Checkmate in 6", "blurb": "Bird players beware: one careless knight move and Black's queen and bishop mate on g3.", "moves": "f4 e5 fxe5 d6 exd6 Bxd6 Nc3 Qh4+ g3 Qxg3+ hxg3 Bxg3#"}, {"id": "kieninger", "name": "Kieninger trap", "opening": "Budapest Gambit", "winner": "black", "result": "Checkmate in 8", "blurb": "White takes the bishop with a pawn and walks straight into ...Nd3#, a smothered mate.", "moves": "d4 Nf6 c4 e5 dxe5 Ng4 Nf3 Nc6 Bf4 Bb4+ Nbd2 Qe7 a3 Ngxe5 axb4 Nd3#"}, {"id": "fishing", "name": "Fishing Pole trap", "opening": "Ruy Lopez, Berlin", "winner": "black", "result": "Checkmate in 9", "blurb": "...Ng4 dangles bait. h3 and hxg4 take it, the h-file opens, and the queen and g3 pawn mate on h2.", "moves": "e4 e5 Nf3 Nc6 Bb5 Nf6 O-O Ng4 h3 h5 hxg4 hxg4 Ne1 Qh4 f3 g3 d4 Qh2#"}, {"id": "elephant", "name": "Elephant trap", "opening": "Queen's Gambit Declined", "winner": "black", "result": "Wins a piece", "blurb": "Nxd5 looks like it wins a pawn because of the pin. It doesn't: ...Bb4+ and Black ends up a piece ahead.", "moves": "d4 d5 c4 e6 Nc3 Nf6 Bg5 Nbd7 cxd5 exd5 Nxd5 Nxd5 Bxd8 Bb4+ Qd2 Bxd2+ Kxd2 Kxd8"}, {"id": "noah", "name": "Noah's Ark trap", "opening": "Ruy Lopez", "winner": "black", "result": "Traps the bishop", "blurb": "Pawns on a6, b5 and c4 build an ark around White's bishop. It never gets out.", "moves": "e4 e5 Nf3 Nc6 Bb5 a6 Ba4 d6 d4 b5 Bb3 Nxd4 Nxd4 exd4 Qxd4 c5 Qd5 Be6 Qc6+ Bd7 Qd5 c4"}, {"id": "lasker", "name": "Lasker trap", "opening": "Albin Countergambit", "winner": "black", "result": "Wins material", "blurb": "A pawn marches all the way down and promotes to a knight, with check. One of the rare good underpromotions.", "moves": "d4 d5 c4 e5 dxe5 d4 e3 Bb4+ Bd2 dxe3 Bxb4 exf2+ Ke2 fxg1=N+"}];
 function miniBoard(moves){
   const c=new Chess(); let last=null; for(const s of moves){ const r=c.move(s,{sloppy:true}); if(!r) break; last=r; }
   let h=""; for(let r=8;r>=1;r--) for(let f=0;f<8;f++){ const sq=FILES[f]+r, p=c.get(sq), hl=last&&(last.from===sq||last.to===sq);
     h+=`<i class="${(r+f)%2?"l":"d"}${hl?" hl":""}">${p?`<svg viewBox="0 0 40 40"><use href="#${p.color}${p.type}"/></svg>`:""}</i>`; }
   return `<div class="mini-board" aria-hidden="true">${h}</div>`;
 }
-function lichessToGame(x){
-  const W=x.players.white, B=x.players.black, mater=x.winner; // trapper's point of view
-  const me=mater==="white"?W:B, op=mater==="white"?B:W, full=x.opening?.name||"Unknown";
-  return {color:mater, me:me.user?.name||"Anonymous", opp:op.user?.name||"Anonymous", myR:me.rating, oppR:op.rating,
-    date:new Date(x.lastMoveAt||x.createdAt), tc:x.speed, res:"W", url:"https://lichess.org/"+x.id,
-    moves:(x.moves||"").split(" ").filter(Boolean), clocks:[], tcx:null, full, family:full.split(":")[0], eco:x.opening?.eco||""};
-}
-const ago=d=>{ const m=Math.round((Date.now()-d)/60000); return m<60?m+" min ago":m<1440?Math.round(m/60)+" h ago":Math.round(m/1440)+" days ago"; };
-let showcaseGames=[];
-function renderShowcase(list,note){
-  showcaseGames=list;
-  $("#scGrid").innerHTML=list.map((g,i)=>{ const t=trapOf(g); const victim=g.opp, vr=g.oppR;
-    return `<button type="button" class="sc-card" data-i="${i}">
-      ${miniBoard(g.moves)}
-      <div class="sc-txt"><div class="sc-trap">${t?t.trap.name:"Checkmate"}</div>
-      <div class="sc-who"><b>${esc(victim)}</b>${vr?` <span>${vr}</span>`:""} got mated on move ${Math.ceil(g.moves.length/2)}</div>
-      <div class="sc-meta">${g.classic?"Paris, 1750 · the original":`${esc(g.tc)} · ${ago(g.date)}`}</div></div></button>`; }).join("");
-  $("#scNote").textContent=note||"";
-}
-async function loadShowcase(force){
-  try{ const c=JSON.parse(localStorage.getItem("spyShowcase")||"null");
-    if(!force&&c&&Date.now()-c.t<3600e3&&c.items.length){ renderShowcase(c.items.map(g=>({...g,date:new Date(g.date)})),"Fresh from today's Lichess beginner tournaments."); return; } }catch(e){}
-  $("#scGrid").innerHTML=`<p class="sc-wait">Scanning the latest Lichess beginner tournaments for trap victims…</p>`;
-  try{
-    const r=await fetch("https://lichess.org/api/tournament"); if(!r.ok) throw 0;
-    const all=(await r.json()).finished||[];
-    const cap=t=>{ const m=(t.fullName||"").match(/≤\s?(\d{3,4})/); return m?+m[1]:(t.maxRating?.rating||9999); };
-    const pool=all.filter(t=>cap(t)<=1700&&t.nbPlayers>=20).sort((a,b)=>cap(a)-cap(b)||b.finishesAt-a.finishesAt);
-    const pickT=(pool.length?pool:all).slice(0,3), found=[], seen=new Set();
-    for(const t of pickT){
-      const gr=await fetch(`https://lichess.org/api/tournament/${t.id}/games?moves=true&opening=true&clocks=false&evals=false`,{headers:{Accept:"application/x-ndjson"}});
-      if(!gr.ok) continue;
-      for(const line of (await gr.text()).split("\n")){ if(!line.trim()) continue;
-        const x=JSON.parse(line); if(x.status!=="mate"||!x.winner) continue;
-        const g=lichessToGame(x), tr=trapOf(g); if(!tr) continue;
-        found.push({g,named:tr.trap.id!=="early",id:tr.trap.id}); }
-      if(found.filter(f=>f.named).length>=6) break;
-    }
-    // named traps first, one per trap type, then fill
-    found.sort((a,b)=>b.named-a.named||a.g.moves.length-b.g.moves.length);
-    const out=[]; for(const f of found){ if(out.length>=6) break; if(f.named&&seen.has(f.id)) continue; seen.add(f.id); out.push(f.g); }
-    for(const f of found){ if(out.length>=6) break; if(!out.includes(f.g)) out.push(f.g); }
-    if(!out.length) throw 0;
-    try{ localStorage.setItem("spyShowcase",JSON.stringify({t:Date.now(),items:out})); }catch(e){}
-    renderShowcase(out,"Fresh from today's Lichess beginner tournaments.");
-  }catch(e){
-    renderShowcase(CLASSIC,"Couldn't reach Lichess right now, so here's where it all started.");
-  }
-}
+const famousGames=FAMOUS.map(t=>{ const wName=t.white||"White", bName=t.black||"Black", w=t.winner==="white";
+  return {famous:t, color:t.winner, me:w?wName:bName, opp:w?bName:wName, myR:null, oppR:null,
+    date:new Date(Date.UTC(t.year||2026,0,1)), tc:"demo", res:"W", url:"famous:"+t.id,
+    moves:t.moves.split(" "), clocks:[], tcx:null, full:t.opening, family:t.opening, eco:""}; });
+$("#scGrid").innerHTML=famousGames.map((g,i)=>`<button type="button" class="sc-card" data-i="${i}">
+  ${miniBoard(g.moves)}
+  <div class="sc-txt"><div class="sc-trap">${esc(g.famous.name)}</div>
+  <div class="sc-who">${esc(g.famous.opening)}</div>
+  <div class="sc-meta"><span class="sc-res ${/^Checkmate/.test(g.famous.result)?"mate":""}">${esc(g.famous.result)}</span>${g.famous.year?` · real game, ${g.famous.year}`:""}</div></div></button>`).join("");
 $("#scGrid").addEventListener("click",e=>{
-  const b=e.target.closest(".sc-card"); if(!b) return; const g=showcaseGames[+b.dataset.i];
-  site=g.classic?"chesscom":"lichess"; player="trap victims";
-  showGameList("Trap victims",showcaseGames,true); openBoard(g); go(g.moves.length);
+  const b=e.target.closest(".sc-card"); if(!b) return; const g=famousGames[+b.dataset.i], t=g.famous;
+  site="famous"; player="famous traps";
+  showGameList("Famous traps",famousGames,true); openBoard(g); go(g.moves.length);
+  // the little guy introduces the trap
+  const box=$("#coachSay"); box.hidden=false; box.dataset.fen=fens[ply]; $("#coachGuy").innerHTML=coachFace("happy");
+  box.innerHTML=`<p class="say-h">${esc(t.name)}</p><ul><li>${esc(t.blurb)}</li><li>Tap |&lt; to start from move 1 and watch it happen. I'll point out the move where it goes wrong.</li></ul>`;
 });
-$("#scRefresh").onclick=()=>loadShowcase(true);
-loadShowcase();
 
 /* ---------- engine (Stockfish, runs locally in a worker) ---------- */
 const DEPTH=PHONE?14:18;
