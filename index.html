@@ -181,6 +181,23 @@ body.deep h1{font-size:24px}
 body.deep .wrap{padding-top:16px}
 .engbtn{margin-left:auto;font-size:12px;padding:4px 10px;border-radius:99px;background:transparent}
 .offline{font-size:12.5px;color:var(--muted);margin:14px 0 0;max-width:62ch}
+.traps{margin:0 0 18px;padding:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.traps-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 12px}
+.traps-h h3{margin:0;font:600 18px var(--display)}
+.traps-h span{font-size:13px;color:var(--muted)}
+.tcols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:10px}
+@media (max-width:640px){.tcols{grid-template-columns:1fr}}
+.tcol{min-width:0}
+.tcol h4{margin:0 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tcol h4 b{font:600 13px var(--mono);color:var(--fg);margin-left:4px}
+.tcol:first-child h4 b{color:var(--loss)}.tcol:last-child h4 b{color:var(--win)}
+.trap{padding:8px 0;border-top:1px solid var(--line)}
+.tname{font-weight:600}.tname span{font:500 12px var(--mono);color:var(--muted);margin-left:4px}
+.tblurb{font-size:13px;color:var(--muted);margin:2px 0 6px}
+.tgame,.tmore{display:block;width:100%;text-align:left;font-size:13px;padding:5px 8px;margin-top:4px;border-radius:6px;background:var(--bg)}
+.tgame:hover,.tmore:hover{background:var(--accent-soft)}
+.tmore{color:var(--muted)}
+.tempty{font-size:13px;color:var(--muted);margin:4px 0 0}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
 @media (max-width:640px){
@@ -446,6 +463,7 @@ https://github.com/shaack/cm-chessboard
     <div class="filters" id="colorF"></div>
     <div class="filters" id="tcF" style="margin-top:0"></div>
     <div class="summary" id="summary"></div>
+    <section class="traps" id="traps"></section>
     <div class="tablewrap"><table>
       <thead><tr>
         <th data-k="name">Opening</th>
@@ -2458,7 +2476,7 @@ function render(){
   }
   const rows=[...map.values()].map(o=>({...o,pct:o.n/gs.length*100,winp:o.W/o.n*100}));
   rows.sort((a,b)=>sortK==="name"?a.name.localeCompare(b.name)*sortDir:(a[sortK]-b[sortK])*sortDir||b.n-a.n);
-  rowsCache=rows;
+  rowsCache=rows; renderTraps(gs);
   const W=gs.filter(g=>g.res==="W").length, top=Math.max(0,...rows.map(r=>r.pct));
   $("#summary").innerHTML=`<div><b>${gs.length}</b><span>Games</span></div><div><b>${rows.length}</b><span>Different openings</span></div>
     <div><b>${gs.length?Math.round(W/gs.length*100):0}%</b><span>Overall win rate</span></div><div><b>${Math.round(top)}%</b><span>Top opening share</span></div>`;
@@ -2479,16 +2497,17 @@ rowActivate($("#tb"),i=>openGames(rowsCache[i].name));
 
 /* ---------- games list ---------- */
 const fmtDate=d=>d.toLocaleDateString(undefined,{year:"numeric",month:"short",day:"numeric"});
-function openGames(name){
+function openGames(name){ showGameList(name, filtered().filter(g=>keyOf(g)===name)); }
+function showGameList(name,list,noShow){
   curOpening=name;
-  curGames=filtered().filter(g=>keyOf(g)===name).sort((a,b)=>b.date-a.date);
+  curGames=list.slice().sort((a,b)=>b.date-a.date);
   const W=curGames.filter(g=>g.res==="W").length;
   $("#gTitle").textContent=`${name} · ${curGames.length} game${curGames.length>1?"s":""} · ${Math.round(W/curGames.length*100)}% won`;
   $("#gtb").innerHTML=curGames.map((g,i)=>`<tr class="click" data-i="${i}" tabindex="0">
     <td>${fmtDate(g.date)}</td><td class="hide-sm"><span class="side ${g.color}"></span>${g.color}</td>
     <td><span class="side ${g.color} show-sm"></span>${esc(g.opp)} <span class="eco">${g.oppR??""}</span></td><td class="num"><span class="res ${g.res}">${g.res}</span></td>
     <td class="hide-sm">${esc(g.tc)}</td><td class="num">${Math.ceil(g.moves.length/2)}</td><td class="name hide-sm" style="color:var(--muted)">${esc(g.full)}</td></tr>`).join("");
-  show("vGames");
+  if(!noShow) show("vGames");
 }
 rowActivate($("#gtb"),i=>openBoard(curGames[i]));
 $("#backO").onclick=()=>show("vOpenings");
@@ -2974,6 +2993,66 @@ function autoComment(){
 }
 
 $("#askW").onclick=()=>coachAsk("w"); $("#askB").onclick=()=>coachAsk("b"); coachReset();
+
+/* ---------- trap watch: famous checkmate traps in the loaded games ---------- */
+function smothered(c){
+  const k=c.turn(); let ks=null;
+  for(let r=1;r<=8&&!ks;r++)for(let f=0;f<8;f++){ const sq=FILES[f]+r, p=c.get(sq); if(p&&p.type==="k"&&p.color===k){ ks={f,r}; break; } }
+  if(!ks) return false;
+  for(let df=-1;df<=1;df++)for(let dr=-1;dr<=1;dr++){ if(!df&&!dr) continue;
+    const f=ks.f+df, r=ks.r+dr; if(f<0||f>7||r<1||r>8) continue;
+    const p=c.get(FILES[f]+r); if(!p||p.color!==k) return false; }
+  return true;
+}
+const TRAPS=[
+  {id:"fool",name:"Fool's Mate",blurb:"Checkmate in two moves. The fastest mate in chess.",
+   test:(m,N,w)=>N<=6&&m[N-1]===(w?"Qh5#":"Qh4#")},
+  {id:"scholar",name:"Scholar's Mate",blurb:"Queen and bishop team up on f7. Everyone's first heartbreak.",
+   test:(m,N,w)=>N<=16&&(w?/^Qx?f7#$/:/^Qx?f2#$/).test(m[N-1])},
+  {id:"legal",name:"Légal's Mate",blurb:"Lets you grab the queen, then mates with the minor pieces. Trap from 1750 and still working.",
+   test:(m,N,w)=>N<=24&&/^N/.test(m[N-1])&&m.slice(0,N).some((s,i)=>i%2===(w?1:0)&&s===(w?"Bxd1":"Bxd8"))},
+  {id:"blackburne",name:"Blackburne Shilling trap",blurb:"...Nd4 looks like a blunder, Nxe5 grabs a pawn, and ...Nf3# arrives out of nowhere.",
+   test:(m,N,w)=>!w&&N<=24&&m[N-1]==="Nf3#"&&m.slice(0,8).includes("Nd4")},
+  {id:"englund",name:"Englund Gambit trap",blurb:"1.d4 e5?! and greedy White walks into ...Qc1#.",
+   test:(m,N,w)=>!w&&N<=24&&m[0]==="d4"&&m[1]==="e5"&&m[N-1]==="Qc1#"},
+  {id:"kieninger",name:"Kieninger trap",blurb:"Budapest Gambit special: take the bishop, get ...Nd3#.",
+   test:(m,N,w)=>!w&&N<=24&&m[0]==="d4"&&m[2]==="c4"&&m[N-1]==="Nd3#"},
+  {id:"smothered",name:"Smothered mate",blurb:"A knight mates a king that's boxed in by its own pieces.",
+   test:(m,N,w,fin)=>N<=40&&/^N/.test(m[N-1])&&fin&&smothered(fin())},
+  {id:"early",name:"Early checkmate",blurb:"Not a named trap, but mated inside 12 moves still counts.",
+   test:(m,N)=>N<=24},
+];
+function trapOf(g){
+  const m=g.moves, N=m.length; if(!N||N>40||!/#$/.test(m[N-1])) return null;
+  const w=N%2===1; let finC=null;
+  const fin=()=>{ if(!finC){ finC=new Chess(); for(const s of m) if(!finC.move(s,{sloppy:true})) break; } return finC; };
+  const t=TRAPS.find(t=>t.test(m,N,w,fin)); if(!t) return null;
+  return {trap:t, mater:w?"white":"black", fell:(w?"white":"black")!==g.color, moveNo:Math.ceil(N/2)};
+}
+function renderTraps(gs){
+  const el=$("#traps"), fell={}, did={}; let nf=0, nd=0;
+  for(const g of gs){ const t=trapOf(g); if(!t) continue; const bag=t.fell?fell:did; (bag[t.trap.id]=bag[t.trap.id]||[]).push(g); t.fell?nf++:nd++; g._trap=t; }
+  if(!nf&&!nd){ el.innerHTML=`<div class="traps-h"><h3>Trap watch</h3><span>No famous checkmate traps in these games, either way. Boring, but respectable.</span></div>`; return; }
+  const col=(bag,title,n,empty)=>`<div class="tcol"><h4>${title} <b>${n}</b></h4>${n?TRAPS.filter(t=>bag[t.id]).map(t=>{
+      const list=bag[t.id].sort((a,b)=>b.date-a.date);
+      return `<div class="trap"><div class="tname">${t.name} <span>×${list.length}</span></div><div class="tblurb">${t.blurb}</div>
+        ${list.slice(0,4).map(g=>`<button type="button" class="tgame" data-k="${esc(g.url)}">${fmtDate(g.date)} · vs ${esc(g.opp)} · mate on move ${g._trap.moveNo}</button>`).join("")}
+        ${list.length>4?`<button type="button" class="tmore" data-t="${t.id}" data-f="${bag===fell?1:0}">+${list.length-4} more</button>`:""}</div>`;
+    }).join(""):`<p class="tempty">${empty}</p>`}</div>`;
+  el.innerHTML=`<div class="traps-h"><h3>Trap watch</h3><span>Famous checkmate traps in these games. Tap one to see the mate.</span></div>
+    <div class="tcols">${col(fell,"Fell for it",nf,"Never fell for one. Respect.")}${col(did,"Pulled it off",nd,"Hasn't caught anyone yet.")}</div>`;
+  el._bags={fell,did};
+}
+$("#traps").addEventListener("click",e=>{
+  const g1=e.target.closest(".tgame"), more=e.target.closest(".tmore"), bags=$("#traps")._bags; if(!bags) return;
+  const all=[...Object.values(bags.fell).flat(),...Object.values(bags.did).flat()];
+  if(g1){ const g=all.find(x=>x.url===g1.dataset.k); if(!g) return;
+    const list=(g._trap.fell?bags.fell:bags.did)[g._trap.trap.id];
+    showGameList(`${g._trap.trap.name} · ${g._trap.fell?"fell for it":"pulled it off"}`,list,true);
+    openBoard(g); go(sans.length); }
+  else if(more){ const bag=more.dataset.f==="1"?bags.fell:bags.did, t=TRAPS.find(x=>x.id===more.dataset.t);
+    showGameList(`${t.name} · ${more.dataset.f==="1"?"fell for it":"pulled it off"}`,bag[t.id]); }
+});
 
 /* ---------- engine (Stockfish, runs locally in a worker) ---------- */
 const DEPTH=PHONE?14:18;
