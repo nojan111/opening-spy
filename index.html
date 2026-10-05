@@ -161,15 +161,16 @@ tr:last-child td{border-bottom:0}
 .mk{font-style:normal;font-weight:600;margin-left:3px}
 .mk.bl,.cnt .bl{color:var(--loss)}.mk.mi,.cnt .mi{color:var(--warn)}.mk.in,.cnt .in{color:var(--inacc)}
 .moves button.cur .mk{color:inherit}
-.coach{display:flex;gap:10px;align-items:flex-start;margin:10px 0 0}
+.coach{display:flex;flex-direction:row-reverse;gap:10px;align-items:flex-start;margin:0 0 10px 38px}
 .coach .guy{width:52px;height:62px;flex:none;transition:transform .2s}
-.coach .guy:hover{transform:rotate(-6deg)}
+.coach .guy:hover{transform:rotate(6deg)}
 @media (prefers-reduced-motion:reduce){.coach .guy{transition:none}}
 .coach-main{flex:1;min-width:0}
-.coach-btns{display:flex;flex-wrap:wrap;gap:6px}
+.coach-btns{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
 .coach-btns button{font-size:13px;padding:5px 10px;border-radius:99px}
-.say{position:relative;margin-top:8px;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
-.say::before{content:"";position:absolute;left:-7px;top:12px;width:12px;height:12px;background:var(--bg);border-left:1px solid var(--line);border-bottom:1px solid var(--line);transform:rotate(45deg)}
+.say{position:relative;margin-top:8px;max-height:240px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px}
+.coach-main{position:relative}
+.coach-main:has(.say:not([hidden]))::after{content:"";position:absolute;right:-7px;bottom:24px;width:12px;height:12px;background:var(--bg);border-right:1px solid var(--line);border-top:1px solid var(--line);transform:rotate(45deg)}
 .say-h{margin:0;font-weight:600}
 .say ul{margin:6px 0 0;padding-left:18px}
 .say li{margin:3px 0}
@@ -204,6 +205,9 @@ body.deep .wrap{padding-top:16px}
   .ctrls #bSound{max-width:110px}
   .players,.tchart{margin-left:38px}
   .moves{max-height:280px}
+  .say{max-height:130px;font-size:13px;padding:8px 10px}
+  .coach .guy{width:44px;height:52px}
+  .coach-main:has(.say:not([hidden]))::after{bottom:18px}
   .sq{-webkit-tap-highlight-color:transparent}
   .board{touch-action:pan-y}
 }
@@ -470,6 +474,13 @@ https://github.com/shaack/cm-chessboard
     <div class="head"><button class="back" id="backG">← Games</button><h2 id="bTitle"></h2></div>
     <div class="viewer">
       <div>
+        <div class="coach">
+          <div id="coachGuy"></div>
+          <div class="coach-main">
+            <div class="coach-btns"><button id="askW" type="button">Why <span class="hide-sm">is </span>White<span class="hide-sm"> better</span>?</button><button id="askB" type="button">Why <span class="hide-sm">is </span>Black<span class="hide-sm"> better</span>?</button></div>
+            <div class="say" id="coachSay" hidden aria-live="polite"></div>
+          </div>
+        </div>
         <div class="players" id="pTop"></div>
         <div class="boardcol">
           <div class="evalbar"><i id="evalFill" style="height:50%"></i><span class="evalnum bot onw" id="evalNum">0.0</span></div>
@@ -491,13 +502,6 @@ https://github.com/shaack/cm-chessboard
         <div class="acc" id="acc"></div>
         <div class="eng"><b id="evalTxt">0.00</b><small id="evalInfo">Stockfish · starting…</small><button type="button" id="engToggle" class="engbtn"></button></div>
         <p class="pv" id="pv"></p>
-        <div class="coach">
-          <div id="coachGuy"></div>
-          <div class="coach-main">
-            <div class="coach-btns"><button id="askW" type="button">Why is White better?</button><button id="askB" type="button">Why is Black better?</button></div>
-            <div class="say" id="coachSay" hidden aria-live="polite"></div>
-          </div>
-        </div>
         <div class="moves" id="moves"></div>
         <div class="links" id="links"></div>
       </div>
