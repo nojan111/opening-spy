@@ -105,7 +105,7 @@ tr:last-child td{border-bottom:0}
 .evalnum.onw{color:var(--pc-black)}.evalnum.onb{color:var(--pc-white)}
 .evalbar.flip{flex-direction:column}
 .evalbar i{display:block;background:var(--pc-white);transition:height .3s}
-.board{flex:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);aspect-ratio:1;max-width:100%;border-radius:4px;overflow:hidden;user-select:none}
+.board{position:relative;flex:1;display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);aspect-ratio:1;max-width:100%;border-radius:4px;overflow:hidden;user-select:none}
 .sq{position:relative;min-width:0;min-height:0;overflow:hidden;display:grid;place-items:center;font-size:min(8.5vw,50px);line-height:1}
 .sq.l{background:var(--sq-light)}.sq.d{background:var(--sq-dark)}
 .sq.hl::after{content:"";position:absolute;inset:0;background:var(--sq-hl);opacity:.55}
@@ -215,6 +215,7 @@ body.deep .wrap{padding-top:16px}
 .sc-res{font:600 11px var(--mono);padding:1px 6px;border-radius:4px;background:var(--accent-soft);color:var(--fg)}
 .sc-res.mate{background:var(--loss);color:#fff}
 .sc-wait{grid-column:1/-1;font-size:13px;color:var(--muted);margin:0;padding:16px;border:1px dashed var(--line);border-radius:8px;text-align:center}
+.arrows{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:3}
 .links{margin-top:12px;font-size:14px}
 .show-sm{display:none}
 @media (max-width:640px){
@@ -2598,7 +2599,7 @@ function drawBoard(){
       (ff===0?`<span class="coord r">${r+1}</span>`:"")+(rr===7?`<span class="coord f">${"abcdefgh"[f]}</span>`:"")+
       (p?`<svg class="pc" viewBox="0 0 40 40"><use href="#${p.color}${p.type}"/></svg>`:"")+`</div>`;
   }
-  b.innerHTML=h; document.querySelector('.evalbar').classList.toggle('flip',flipped); placeEvalNum();
+  b.innerHTML=h+'<svg class="arrows" id="arrows" viewBox="0 0 800 800" aria-hidden="true"></svg>'; arrowKey=""; drawArrow(); document.querySelector('.evalbar').classList.toggle('flip',flipped); placeEvalNum();
   const g=game, meW=g.color==="white";
   const wLine=`<span><span class="side white"></span><b>${esc(meW?g.me:g.opp)}</b> ${(meW?g.myR:g.oppR)??""}</span>`;
   const bLine=`<span><span class="side black"></span><b>${esc(meW?g.opp:g.me)}</b> ${(meW?g.oppR:g.myR)??""}</span>`;
@@ -3130,7 +3131,7 @@ function analyse(fen){
     const txt=c.in_checkmate()?(c.turn()==="w"?"0-1":"1-0"):"½-½";
     setEval(c.in_checkmate()?(c.turn()==="w"?-1:1):0,txt, c.in_checkmate()?"Checkmate":"Draw",""); return;
   }
-  if(!engineOn){ engineStop(); setEval(0,"–","Engine off · tap to turn on",""); return; }
+  if(!engineOn){ engineStop(); setEval(0,"–","Engine off · tap to turn on",""); drawArrow(); return; }
   if(PHONE&&accRun){ engineStop(); liveWaiting=true; $("#evalInfo").textContent="Waiting for the game review (saves battery)…"; return; }
   if(document.hidden) return;
   if(!engine()) return;
@@ -3157,7 +3158,7 @@ function onEngine(line){
   if(mate){const m=+mate[1]*sgn; txt=(m>0?"+":"-")+"M"+Math.abs(m); frac=m>0?1:-1;}
   else if(cp){const v=+cp[1]*sgn/100; txt=(v>0?"+":"")+v.toFixed(2); frac=Math.tanh(v/4);}
   else return;
-  lastEng={fen:curFen,depth:d,pv,cpW:cp?+cp[1]*sgn:null,mateW:mate?+mate[1]*sgn:null};
+  lastEng={fen:curFen,depth:d,pv,cpW:cp?+cp[1]*sgn:null,mateW:mate?+mate[1]*sgn:null}; drawArrow();
   // convert best line to SAN
   const c=new Chess(curFen), out=[]; let n=+curFen.split(" ")[5];
   for(const u of pv.slice(0,10)){
@@ -3173,6 +3174,21 @@ function placeEvalNum(){ // number sits at the end of whoever is ahead, like che
   n.textContent=barTxt.replace(/^\+/,"").replace(/^-(?=M)/,"").replace(/^(-?\d+\.\d)\d$/,(m,a)=>Math.abs(parseFloat(m))>=10?a:m);
   if(/^[+-]?M/.test(barTxt)) n.textContent=barTxt.replace(/^[+-]/,"");
   n.className="evalnum "+((whiteAhead===whiteAtBottom)?"bot":"top")+" "+(whiteAhead?"onw":"onb");
+}
+/* best-move arrow on the board (from the live engine) */
+let arrowKey="";
+function drawArrow(){
+  const svg=$("#arrows"); if(!svg) return;
+  const ok=engineOn&&lastEng&&lastEng.fen===fens[ply]&&lastEng.depth>=6&&lastEng.pv&&lastEng.pv[0];
+  const u=ok?lastEng.pv[0]:"", key=u+(flipped?"f":"");
+  if(key===arrowKey) return; arrowKey=key;
+  if(!u){ svg.innerHTML=""; return; }
+  const pt=sq=>{ const f=sq.charCodeAt(0)-97, r=+sq[1]; return [(flipped?7-f:f)*100+50,(flipped?r-1:8-r)*100+50]; };
+  const [x1,y1]=pt(u.slice(0,2)), [x2,y2]=pt(u.slice(2,4)), dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy), ux=dx/len, uy=dy/len;
+  const head=44, ex=x2-ux*head*0.6, ey=y2-uy*head*0.6, sx=x1+ux*18, sy=y1+uy*18;
+  const px=-uy, py=ux, bx=x2-ux*head, by=y2-uy*head, tipx=x2-ux*6, tipy=y2-uy*6;
+  svg.innerHTML=`<g opacity=".82"><line x1="${sx}" y1="${sy}" x2="${ex}" y2="${ey}" stroke="var(--accent)" stroke-width="20" stroke-linecap="round"/>
+    <polygon points="${tipx},${tipy} ${bx+px*30},${by+py*30} ${bx-px*30},${by-py*30}" fill="var(--accent)"/></g>`;
 }
 function setEval(frac,txt,info,pv){
   $("#evalFill").style.height=(50+frac*50)+"%"; $("#evalTxt").textContent=txt;
